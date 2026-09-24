@@ -22,15 +22,18 @@ const X = enum(u5) {
     X2,
     X3,
 
-
     const FLAG = flag(
         @This(),
         RegRw{ .addr = 0x1a00, .size = 4 },
     );
 };
 
-pub fn main() void {
-    zreg.init();
+pub fn main() !void {
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
+
+    try zreg.init(gpa.allocator());
+    defer zreg.deinit();
 
     std.debug.print("Hello, World!\n", .{});
 
@@ -49,6 +52,6 @@ pub fn main() void {
     const e = X.FLAG.isSetAll(X.FLAG.Set.initMany(&.{ X.X1, X.X2 }));
     std.debug.print("e: {}\n", .{e});
 
-    const f = X.FLAG.isSetUnsafe(.{ X.X1, X.X2 });
+    const f = X.FLAG.isSetUnsafe(&.{ X.X1, X.X2 });
     std.debug.print("f: {}\n", .{f});
 }

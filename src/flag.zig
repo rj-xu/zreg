@@ -21,9 +21,9 @@ pub fn flag(comptime E: type, comptime reg_def: RegRw) type {
             return reg.maskIsSet(m);
         }
 
-        pub fn isSetUnsafe(flag_bits: anytype) bool {
+        pub fn isSetUnsafe(flag_bits: []const E) bool {
             comptime var m: u32 = 0;
-            inline for (flag_bits) |flag_bit| m |= bit(@intFromEnum(flag_bit));
+            inline for (flag_bits) |flag_bit| m |= @as(u32, 1) << @intFromEnum(flag_bit);
             return reg_def.maskIsSet(m);
         }
     };
