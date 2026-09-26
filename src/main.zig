@@ -49,9 +49,6 @@ pub fn main() !void {
     const d = X.FLAG.isSet(X.X1);
     std.debug.print("d: {}\n", .{d});
 
-    const e = X.FLAG.isSetAll(X.FLAG.Set.initMany(&.{ X.X1, X.X2 }));
+    const e = X.FLAG.isSetAll(&.{ X.X1, X.X2 });
     std.debug.print("e: {}\n", .{e});
-
-    const f = X.FLAG.isSetAll2(&.{ X.X1, X.X2 });
-    std.debug.print("f: {}\n", .{f});
 }
