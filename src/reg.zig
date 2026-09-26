@@ -54,7 +54,7 @@ pub const RegRw = struct {
         return .{ .reg = self, .mask = Mask.bits(e, s) };
     }
 
-    pub fn maskIsSet(comptime self: RegRw, mask: u32) bool {
+    pub fn isSetMask(comptime self: RegRw, mask: u32) bool {
         return self.read(null) & mask == mask;
     }
 };
