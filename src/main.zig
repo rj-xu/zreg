@@ -3,14 +3,13 @@ const std = @import("std");
 const zreg = @import("zreg");
 
 const RegRw = zreg.RegRw;
-const bit = zreg.bit;
-const bits = zreg.bits;
 const flag = zreg.flag;
 
 const CRYPTO = struct {
     const BASE = 0x1a00;
     const CONFIG = struct {
         pub const REG = RegRw{ .addr = BASE + 0x00, .size = 4 };
+
         pub const EVENT_NUM = REG.bits(1, 0);
         pub const EVENT_EN = REG.bit(3);
         pub const EVENT_ID = REG.bits(5, 4);

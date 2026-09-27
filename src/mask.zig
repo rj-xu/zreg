@@ -1,6 +1,21 @@
 pub const Mask = struct {
-    s: u5,
+    start: u5,
     mask: u32,
+
+    pub fn bit(comptime b: u5) Mask {
+        return .{ .start = b, .mask = 1 << b };
+    }
+
+    pub fn bits(comptime hi: u5, comptime lo: u5) Mask {
+        if (hi < lo) @compileError("hi must be greater than or equal to lo");
+
+        const len = hi - lo + 1;
+        return .{
+            .start = lo,
+            .mask = ((1 << len) - 1) << lo,
+        };
+    }
+
     pub inline fn get(comptime self: Mask, v: u32) u32 {
         return v & self.mask;
     }
@@ -25,30 +40,10 @@ pub const Mask = struct {
         return (v & self.mask) == 0;
     }
     pub inline fn extract(comptime self: Mask, val: u32) u32 {
-        return self.get(val) >> self.s;
+        return self.get(val) >> self.start;
     }
 
     pub inline fn insert(comptime self: Mask, v: u32, x: u32) u32 {
-        // return self.clear(v) | self.get(x << self.s);
-        return self.clear(v) | (x << self.s);
-    }
-
-    pub fn bits(comptime e: u5, comptime s: ?u5) Mask {
-        const start = s orelse e;
-        const l = e - start + 1;
-        return .{
-            .s = start,
-            .mask = ((1 << l) - 1) << start,
-        };
+        return self.clear(v) | ((x << self.start) & self.mask);
     }
 };
-
-pub inline fn bit(comptime b: u5) u32 {
-    return 1 << b;
-}
-
-pub inline fn bits(comptime e: u5, comptime s: u5) Mask {
-    if (e < s) @compileError("e must be greater than or equal to s");
-    const l = e - s + 1;
-    return ((1 << l) - 1) << s;
-}

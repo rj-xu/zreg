@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const Mask = @import("mask.zig").Mask;
-const Field = @import("field.zig").Field;
+const BitField = @import("field.zig").BitField;
 
 var rng: std.Random.DefaultPrng = undefined;
 pub var map: std.AutoHashMap(u32, u32) = undefined;
@@ -37,7 +37,8 @@ pub const RegRw = struct {
     }
 
     pub fn write(comptime self: RegRw, val: u32) void {
-        std.debug.print("Write Reg([0x{X:0>4}], {d}) = 0x{X:0>8}", .{ self.addr, self.size, val });
+        map.putAssumeCapacity(self.addr, val);
+        std.debug.print("Write Reg([0x{X:0>4}], {d}) = 0x{X:0>8}\n", .{ self.addr, self.size, val });
     }
 
     pub fn modify(comptime self: RegRw, comptime mask: Mask, val: u32) void {
@@ -46,12 +47,12 @@ pub const RegRw = struct {
         self.write(wv);
     }
 
-    pub fn bit(comptime self: RegRw, comptime b: u5) Field {
+    pub fn bit(comptime self: RegRw, comptime b: u5) BitField {
         return self.bits(b, b);
     }
 
-    pub fn bits(comptime self: RegRw, comptime e: u5, comptime s: ?u5) Field {
-        return .{ .reg = self, .mask = Mask.bits(e, s) };
+    pub fn bits(comptime self: RegRw, comptime hi: u5, comptime lo: u5) BitField {
+        return .{ .reg = self, .mask = Mask.bits(hi, lo) };
     }
 
     pub fn isSetMask(comptime self: RegRw, mask: u32) bool {
