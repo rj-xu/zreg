@@ -1,7 +1,6 @@
 const std = @import("std");
-const builtin = @import("builtin");
-const Mask = @import("mask.zig").Mask;
-const BitField = @import("field.zig").BitField;
+const mask = @import("mask.zig");
+const field = @import("field.zig");
 
 var rng: std.Random.DefaultPrng = undefined;
 pub var map: std.AutoHashMap(u32, u32) = undefined;
@@ -21,41 +20,129 @@ pub fn deinit() void {
     map.deinit();
 }
 
-pub const RegRw = struct {
-    addr: u32,
-    size: u32,
+fn Reg(comptime T: type) type {
+    const read_fmt = std.fmt.comptimePrint("Read Reg([0x{{X:0>4}}], {{d}}) = 0x{{X:0>{d}}}\n", .{@bitSizeOf(T) / 4});
+    const write_fmt = std.fmt.comptimePrint("Write Reg([0x{{X:0>4}}], {{d}}) = 0x{{X:0>{d}}}\n", .{@bitSizeOf(T) / 4});
 
-    pub fn read(comptime self: RegRw, comptime mask: ?Mask) u32 {
-        const gop = map.getOrPutValue(self.addr, rng.random().int(u32)) catch
-            @panic("zreg: out of memory while caching register");
-        var val = gop.value_ptr.*;
-        std.debug.print("Read Reg([0x{X:0>4}], {d}) = 0x{X:0>8}\n", .{ self.addr, self.size, val });
-        if (mask) |m| {
-            val = m.extract(val);
+    return struct {
+        pub fn read(comptime addr: u32) T {
+            const gop = map.getOrPutValue(addr, rng.random().int(u32)) catch
+                @panic("zreg: out of memory while caching register");
+            const val: T = @truncate(gop.value_ptr.*);
+            std.debug.print(read_fmt, .{ addr, @sizeOf(T), val });
+            return val;
         }
-        return val;
-    }
 
-    pub fn write(comptime self: RegRw, val: u32) void {
-        map.putAssumeCapacity(self.addr, val);
-        std.debug.print("Write Reg([0x{X:0>4}], {d}) = 0x{X:0>8}\n", .{ self.addr, self.size, val });
-    }
+        pub fn extract(comptime addr: u32, comptime m: mask.Mask(T)) T {
+            return m.extract(read(addr));
+        }
 
-    pub fn modify(comptime self: RegRw, comptime mask: Mask, val: u32) void {
-        const rv = self.read(mask);
-        const wv = mask.insert(rv, val);
-        self.write(wv);
-    }
+        pub fn write(comptime addr: u32, val: T) void {
+            map.putAssumeCapacity(addr, val);
+            std.debug.print(write_fmt, .{ addr, @sizeOf(T), val });
+        }
 
-    pub fn bit(comptime self: RegRw, comptime b: u5) BitField {
-        return self.bits(b, b);
-    }
+        pub fn modify(comptime addr: u32, comptime m: mask.Mask(T), val: T) void {
+            write(addr, m.insert(read(addr), val));
+        }
 
-    pub fn bits(comptime self: RegRw, comptime hi: u5, comptime lo: u5) BitField {
-        return .{ .reg = self, .mask = Mask.bits(hi, lo) };
-    }
+        pub fn isSetMask(comptime addr: u32, m: T) bool {
+            return read(addr) & m == m;
+        }
+    };
+}
 
-    pub fn isSetMask(comptime self: RegRw, mask: u32) bool {
-        return self.read(null) & mask == mask;
-    }
-};
+pub fn RegRo(comptime T: type) type {
+    return struct {
+        addr: u32,
+
+        const Self = @This();
+        const Mask = mask.Mask(T);
+        const RegOpt = Reg(T);
+        const Shift = std.math.Log2Int(T);
+
+        pub fn read(comptime self: Self) T {
+            return RegOpt.read(self.addr);
+        }
+
+        pub fn extract(comptime self: Self, comptime m: Mask) T {
+            return RegOpt.extract(self.addr, m);
+        }
+
+        pub fn bit(comptime self: Self, comptime b: Shift) field.BitFieldRo(T) {
+            return self.bits(b, b);
+        }
+
+        pub fn bits(comptime self: Self, comptime hi: Shift, comptime lo: Shift) field.BitFieldRo(T) {
+            return .{ .reg = self, .mask = Mask.bits(hi, lo) };
+        }
+
+        pub fn isSetMask(comptime self: Self, m: T) bool {
+            return RegOpt.isSetMask(self.addr, m);
+        }
+    };
+}
+
+pub fn RegRw(comptime T: type) type {
+    return struct {
+        addr: u32,
+
+        const Self = @This();
+        const Mask = mask.Mask(T);
+        const RegOpt = Reg(T);
+        const Shift = std.math.Log2Int(T);
+
+        pub fn read(comptime self: Self) T {
+            return RegOpt.read(self.addr);
+        }
+
+        pub fn extract(comptime self: Self, comptime m: Mask) T {
+            return RegOpt.extract(self.addr, m);
+        }
+
+        pub fn write(comptime self: Self, val: T) void {
+            RegOpt.write(self.addr, val);
+        }
+
+        pub fn modify(comptime self: Self, comptime m: Mask, val: T) void {
+            RegOpt.modify(self.addr, m, val);
+        }
+
+        pub fn bit(comptime self: Self, comptime b: Shift) field.BitField(T) {
+            return self.bits(b, b);
+        }
+
+        pub fn bits(comptime self: Self, comptime hi: Shift, comptime lo: Shift) field.BitField(T) {
+            return .{ .reg = self, .mask = Mask.bits(hi, lo) };
+        }
+
+        pub fn isSetMask(comptime self: Self, m: T) bool {
+            return RegOpt.isSetMask(self.addr, m);
+        }
+    };
+}
+
+pub const RegRo32 = RegRo(u32);
+pub const RegRo16 = RegRo(u16);
+pub const RegRo8 = RegRo(u8);
+pub const RegRw32 = RegRw(u32);
+pub const RegRw16 = RegRw(u16);
+pub const RegRw8 = RegRw(u8);
+
+test {
+    try init(std.testing.allocator);
+    defer deinit();
+
+    const r16 = comptime RegRw16{ .addr = 0x2000 };
+    r16.write(0x1234);
+    try std.testing.expectEqual(@as(u16, 0x1234), r16.read());
+
+    const bf = comptime r16.bits(7, 4);
+    bf.write(0xA);
+    try std.testing.expectEqual(@as(u16, 0xA), bf.read());
+    try std.testing.expectEqual(@as(u16, 0x12A4), r16.read());
+
+    const r8 = comptime RegRo8{ .addr = 0x3000 };
+    const b3 = comptime r8.bit(3);
+    _ = b3.read();
+}
