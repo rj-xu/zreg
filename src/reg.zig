@@ -58,10 +58,6 @@ fn Reg(comptime T: type) type {
         pub fn write_bytes(comptime addr: u32, size: u32, bytes: []const u8) void {
             std.mem.copy(u8, map.getPtr(addr)[0..size], bytes);
         }
-
-        pub fn isSetMask(comptime addr: u32, m: T) bool {
-            return read(addr) & m == m;
-        }
     };
 }
 
@@ -88,10 +84,6 @@ pub fn RegRo(comptime T: type) type {
 
         pub fn bits(comptime self: Self, comptime hi: Shift, comptime lo: Shift) field.BitFieldRo(T) {
             return .{ .reg = self, .mask = Mask.bits(hi, lo) };
-        }
-
-        pub fn isSetMask(comptime self: Self, m: T) bool {
-            return RegOpt.isSetMask(self.addr, m);
         }
     };
 }
@@ -127,10 +119,6 @@ pub fn RegRw(comptime T: type) type {
 
         pub fn bits(comptime self: Self, comptime hi: Shift, comptime lo: Shift) field.BitField(T) {
             return .{ .reg = self, .mask = Mask.bits(hi, lo) };
-        }
-
-        pub fn isSetMask(comptime self: Self, m: T) bool {
-            return RegOpt.isSetMask(self.addr, m);
         }
     };
 }

@@ -1,6 +1,11 @@
 const std = @import("std");
 
 pub fn Mask(comptime T: type) type {
+    switch (T) {
+        u8, u16, u32 => {},
+        else => @compileError("Mask: T must be u8, u16 or u32, got " ++ @typeName(T)),
+    }
+
     return struct {
         start: Shift,
         mask: T,
