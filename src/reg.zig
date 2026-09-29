@@ -25,6 +25,9 @@ fn Reg(comptime T: type) type {
     const write_fmt = std.fmt.comptimePrint("Write Reg([0x{{X:0>4}}], {{d}}) = 0x{{X:0>{d}}}\n", .{@bitSizeOf(T) / 4});
 
     return struct {
+        const Mask = mask.Mask(T);
+        const Shift = std.math.Log2Int(T);
+
         pub fn read(comptime addr: u32) T {
             const gop = map.getOrPutValue(addr, rng.random().int(u32)) catch
                 @panic("zreg: out of memory while caching register");
@@ -43,7 +46,17 @@ fn Reg(comptime T: type) type {
         }
 
         pub fn modify(comptime addr: u32, comptime m: mask.Mask(T), val: T) void {
-            write(addr, m.insert(read(addr), val));
+            const rv = read(addr);
+            const wv = m.insert(rv, val);
+            write(addr, wv);
+        }
+
+        pub fn read_bytes(comptime addr: u32, size: u32) []const u8 {
+            return map.getPtr(addr)[0..size];
+        }
+
+        pub fn write_bytes(comptime addr: u32, size: u32, bytes: []const u8) void {
+            std.mem.copy(u8, map.getPtr(addr)[0..size], bytes);
         }
 
         pub fn isSetMask(comptime addr: u32, m: T) bool {
@@ -57,9 +70,9 @@ pub fn RegRo(comptime T: type) type {
         addr: u32,
 
         const Self = @This();
-        const Mask = mask.Mask(T);
         const RegOpt = Reg(T);
-        const Shift = std.math.Log2Int(T);
+        const Mask = RegOpt.Mask;
+        const Shift = RegOpt.Shift;
 
         pub fn read(comptime self: Self) T {
             return RegOpt.read(self.addr);
@@ -88,9 +101,9 @@ pub fn RegRw(comptime T: type) type {
         addr: u32,
 
         const Self = @This();
-        const Mask = mask.Mask(T);
         const RegOpt = Reg(T);
-        const Shift = std.math.Log2Int(T);
+        const Mask = RegOpt.Mask;
+        const Shift = RegOpt.Shift;
 
         pub fn read(comptime self: Self) T {
             return RegOpt.read(self.addr);
@@ -128,6 +141,34 @@ pub const RegRo8 = RegRo(u8);
 pub const RegRw32 = RegRw(u32);
 pub const RegRw16 = RegRw(u16);
 pub const RegRw8 = RegRw(u8);
+
+pub const RegRoBytes = struct {
+    addr: u32,
+    size: u32,
+
+    const Self = @This();
+    const RegOpt = Reg(u8);
+
+    pub fn read_bytes(comptime self: Self) []const u8 {
+        return RegOpt.read_bytes(self.addr, self.size);
+    }
+};
+
+pub const RegRwBytes = struct {
+    addr: u32,
+    size: u32,
+
+    const Self = @This();
+    const RegOpt = Reg(u8);
+
+    pub fn read_bytes(comptime self: Self) []const u8 {
+        return RegOpt.read_bytes(self.addr, self.size);
+    }
+
+    pub fn write_bytes(comptime self: Self, bytes: []const u8) void {
+        RegOpt.write_bytes(self.addr, self.size, bytes);
+    }
+};
 
 test {
     try init(std.testing.allocator);
